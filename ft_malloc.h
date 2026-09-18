@@ -6,7 +6,7 @@
 /*   By: agalvan- <agalvan-@student.42madrid.c      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/12 21:37:19 by agalvan-          #+#    #+#             */
-/*   Updated: 2026/09/13 02:13:50 by agalvan-         ###   ########.fr       */
+/*   Updated: 2026/09/15 15:30:11 by agalvan-         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,62 +16,55 @@
 # include <stdint.h>
 # include <unistd.h>
 # include <sys/mman.h>
-# include <fcntl.h>
 # include <pthread.h>
 # include "src/libft/libft.h"
 
-# define TINY_MAX 	128
-# define SMALL_MAX	1024
-# define ALIGNMENT	16
-# define NBLOCKS	128
+
+# define ALIGNMENT		16
+# define HEADER_SIZE		(sizeof(t_chunk))
+# define MIN_SPLIT		32
+
+# define LARGE_BASE_THRESHOLD	2048
+# define DYNAMIC_THRESHOLD	(64 * 1024)
+# define THRESHOLD_MAX		(4 * 1024 * 1024)
+# define LARGE_CACHE_CAP	(4 * 1024 * 1024)
+# define NUM_LARGE_BUCKETS	15
+
+# define ARENA_INIT_PAGES	16
+# define ARENA_MAX_PAGES	256
+
+# define CHUNK_FREE		0x1
+# define CHUNK_PREV_FREE	0x2
+# define CHUNK_ZEROED		0x4
+# define CHUNK_MMAPPED		0x8
+# define CHUNK_MASK		(~0XF)
 
 
-typedef union	u_mhead
+typedef struct s_chunk
 {
-	uint64_t	mh_align[2];
-	struct	{
-		uint8_t	m_alloc;
-		uint8_t	m_index;
-		uint16_t	m_magic2;
-		uint32_t	m_nbytes;
-		uint8_t		m_magic[8];
-	} s_minfo;
-} t_mhead;
+    size_t		size;
+    struct s_chunk	*next;
+} t_chunk;
 
-typedef struct s_zone
+
+typedef struct	s_arena
 {
-	void			*start;
-	void			*end;
-	size_t			block_size;
-	size_t			total_blocks;
-	size_t			used_blocks;
-	struct	s_zone	*next;
-	t_mhead			*free_list;
-} t_zone;
+    pthread_mutex_t	mutex;
+    t_chunk		*free_list;
+    t_chunk		*top;
+    size_t		total;
+    size_t		used;
+    size_t		capacity;
+    int			is_brk;
+    struct s_arena	*next;
+}  __attribute__((aligned(64))) t_arena;
 
-typedef enum e_ztype
-{
-	Z_TINY,
-	Z_SMALL,
-	Z_LARGE
-}	t_ztype;
 
-//			ft_malloc.c
 void	*malloc(size_t size);
-
-
-//			ft_free.c
 void	free(void *ptr);
-
-
-//			ft_realloc.c
 void	*realloc(void *ptr, size_t size);
-
-/*		ft_show_alloc_mem.c    */
-void	ft_show_alloc_mem(void);
-
-
 void	*calloc(size_t count, size_t size);
+void	ft_show_alloc_mem(void);
 
 # endif
 

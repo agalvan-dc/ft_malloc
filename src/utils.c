@@ -6,23 +6,19 @@
 /*   By: agalvan- <agalvan-@student.42madrid.com>   +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/13 01:51:23 by agalvan-          #+#    #+#             */
-/*   Updated: 2026/09/13 03:31:50 by agalvan-         ###   ########.fr       */
+/*   Updated: 2026/09/15 14:36:29 by agalvan-         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "internal.h"
 
-size_t	align_up(size_t n, size_t align)
-{
-	size_t	step;
-
-	step = n + (align - 1);
-	return (step - (step % align));
-}
-
 size_t page_size(void)
 {
-	return (getpagesize());
+    static size_t	cached;
+
+    if (!cached)
+	cached = getpagesize();
+    return (cached);
 }
 
 void	putstr_safe(const char *s)
