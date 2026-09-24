@@ -38,6 +38,7 @@ SRC			= ft_malloc.c \
 			  src/debug.c \
 			  src/free_utils.c \
 			  src/large.c \
+			  src/malloc_arena.c \
 			  src/tcache.c \
 			  src/utils.c \
 
@@ -53,6 +54,7 @@ $(LIBFT):
 $(NAME): $(OBJS)
 	@$(CC) $(CFLAGS) -shared $(OBJS) $(LIBFT) -o $(NAME)
 	@ln -sf $(NAME) libft_malloc.so
+	@printf "\033[0;32m[BUILD OK] $(NAME) compiled successfully\033[0m\n"
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
@@ -62,9 +64,8 @@ clean:
 	@$(MAKE) -s clean -C $(LIBFT_DIR) 2>/dev/null || true
 
 fclean: clean
-	@rm -rf $(OBJS)
+	@rm -rf libft_malloc_*.so libft_malloc.so
 	@$(MAKE) -s  fclean -C $(LIBFT_DIR) 2>/dev/null || true
-	@rm -rf libft_malloc.so
 
 re: fclean all
 

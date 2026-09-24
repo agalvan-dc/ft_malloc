@@ -1,13 +1,14 @@
 *This project has been created as part of the 42 curriculum by agalvan-.*
 
-<!-- ASCII banner: hand-made, keeps the minimal theme of the repo. -->
+<!-- ASCII banner: ANSI Shadow font, same art style as the Minishell project. -->
 <div align="center">
 <pre>
- __ _ _____ _ __  __   __ _ _ __ ___  _ __    / \  _ __ __ _  __ _  __ _  ___   __ _
-/ _` |_  / | '_ \ \ \ / / | | '_ ` _ \| '_ \  / _ \| '__/ _` |/ _` |/ _` |/ _ \ / _` |
-(_| |_  | | | | | _\ V /  | | | | | | | | | |/ ___ \ | | (_| | (_| | (_| |  __/ (_| |
-\__, |___| |_| |_|  \_/   |_| |_| |_| |_| |_/_/   \_|_|  \__,_|\__, |\__, |\___|\__, |
- |___/                  |_|                                     |___/ |___/       |___/
+███╗   ███╗ █████╗ ██╗     ██╗      ██████╗  ██████╗
+████╗ ████║██╔══██╗██║     ██║     ██╔═══██╗██╔════╝
+██╔████╔██║███████║██║     ██║     ██║   ██║██║     
+██║╚██╔╝██║██╔══██║██║     ██║     ██║   ██║██║     
+██║ ╚═╝ ██║██║  ██║███████╗███████╗╚██████╔╝╚██████╗
+╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝  ╚═════╝
 </pre>
 </div>
 
@@ -33,6 +34,7 @@
 ## Table of Contents
 
 - [Description](#description)
+- [Glossary of Terms (Plain English)](#glossary-of-terms-plain-english)
 - [Dynamic Memory Theory](#dynamic-memory-theory)
 - [How ft_malloc Works](#how-ft_malloc-works)
 - [Chunk and Arena Layout](#chunk-and-arena-layout)
@@ -66,6 +68,36 @@ Because every subsystem is written with an explicit contract (chunks before/afte
 | `void *calloc(size_t n, size_t s)` | `malloc` + zeroing (skips a `memset` when the chunk was already zero). |
 | `void show_alloc_mem(void)` | Prints the TINY/SMALL/LARGE zones, delimited coherently by memory range, with `Total : N bytes`. |
 | `void show_alloc_mem_ex(void)` | Extended report: per-arena header, every chunk with its state flags, integrity verdict, LARGE zone and live total. |
+
+## Glossary of Terms (Plain English)
+
+Everything in this README uses allocator jargon that can feel like a wall of text if you have never built one. This glossary explains the recurring terms with everyday analogies first, then the precise meaning. Jump back here whenever a term feels fuzzy.
+
+| Term | Everyday analogy | What it actually means |
+| --- | --- | --- |
+| **RSS** (Resident Set Size) | "How much RAM my program is *actually* sitting in, right now" | The set of physical memory pages a process currently holds loaded. Not the same as "allocated": the OS only counts pages that are resident in RAM (`/proc/self/status` `VmRSS`), ignoring pages on swap or never touched. **Peak RSS** is the maximum over the process lifetime. |
+| **Cache / tcache** | "A small drawer at your desk with the tools you use every second" | A per-thread stash of recently freed blocks. `free` parks a small chunk here instead of the shared heap; a following `malloc` of the same size pops it, **lock-free** (no shared mutex), because each thread only touches its own drawer. |
+| **Hot class / hot path** | "The keyboard keys you press 1000&times; a minute" | A size class that programs allocate from *constantly* (here: payloads ≤ 48 B, e.g. `malloc(32)`). The code path for those sizes is called the hot path and is tuned the hardest. |
+| **Bin / size class** | "A bookshelf with one labeled shelf per size" | A free list holding chunks of a similar size range. Instead of scanning all free memory, `malloc` walks only the shelf (bin) matching the request. 64 tiny bins at 16 B grain, then 12 exponential bins. |
+| **Arena** | "A big plot of land bought from the OS, then divided into lots" | A contiguous `mmap` region (16&ndash;256 pages) that ft_malloc carves into chunks. Its header tracks bins, top, accounting and a mutex. |
+| **Chunk** | "One fenced lot on the land" | A unit of allocated (or free) memory: 16-byte header (size + flags), payload, and for free chunks an 8-byte footer. |
+| **Boundary tag / footer** | "The address painted on your neighbor's door" | A free chunk stores its size in its last 8 bytes (the footer). The *next* chunk reads it to learn the previous chunk's size in O(1). |
+| **Coalescing** | "Merging two empty plots into one big plot" | Joining adjacent free chunks into a single larger free chunk, so scattered free space regroups and satisfies bigger requests without mapping more memory. ft_malloc does this eagerly when it matters. |
+| **Internal / external fragmentation** | "Slack (internal) vs many tiny unusable crannies (external)" | Internal: padding between the requested size and the actual chunk. External: free space wasted because it's split into pieces too small to use. |
+| **Adaptive threshold** | "The bouncer whose rule changes as the crowd gets bigger" | The size boundary between SMALL and LARGE. It starts at 64 KiB and doubles after each large request up to 256 KiB, so mid-size workloads migrate from `mmap` to the reusable arena over time. |
+| **`mmap` / `munmap` / `brk`** | "Renting a plot (`mmap`) / returning it (`munmap`) / pushing your fence (`brk`)" | The syscalls that obtain and release memory from the OS. `mmap` maps anonymous pages; `munmap` returns them; `brk`/`sbrk` moves the program break (end of data segment). |
+| **Fast path** | "The door you use 99% of the time" | The cheap route `malloc`/`free` take for small sizes: tcache pop/push, no locks, one header write. The *slow path* is the arena/bins/coalesce machinery. |
+| **Preload / `LD_PRELOAD`** | "Making the whole program use our allocator without recompiling" | Loading `libft_malloc.so` before other libs so every `malloc`/`free`/`realloc`/`calloc` call in a program (and its libc dependents) binds to ours. |
+| **Warmup / cold cache** | "First trip down the corridor before you've stashed anything" | The first allocations that must go to the OS/bins; once the tcache and arenas are primed, later calls skip the slow syscalls. |
+| **Lock-free** | "Grab from your own drawer, no queueing" | An operation that never takes a shared lock (only touches per-thread state), so threads never block on it. |
+| **Minima of interleaved runs** | "The best lap of many alternated laps, not the first one" | The benchmark alternates ft/glibc runs N times and reports the smallest (fastest) time per phase. Minima cancel out scheduler noise; the README shows those minima, not averages. |
+| **ns/op** | "The stopwatch for one single operation" | Wall time in nanoseconds per operation (e.g. 8 ns/op = 8 billionths of a second per `free`). |
+| **`hold` / `waste` phases** | "Park the car (hold) vs measure the parking lot size (waste)" | In the benchmark, `malloc`-held phases keep blocks alive to measure pure allocation rate; `waste` holds 50,000 blocks to measure footprint, not speed. |
+| **Phantom chunk** | "A ghost lot the park surveyor imagined between two real ones" | A stale/temp piece of metadata that made `coalesce_next` skip a real free neighbor; fixing it (absorbing the top piece directly into the chunk) fixed the `realloc` gap. |
+
+**How to read the benchmark numbers.** Lower `us` is faster. The ratio column (`ft / glibc`) is read as *multiple of glibc's time*: **`< 1.0` means ft_malloc is faster**, `> 1.0` means glibc is faster. So `malloc` at `0.93&times;` = ft_malloc does the same work in 93% of glibc's time (faster); `tiny` at `1.9&times;` = ft_malloc takes 1.9&times; longer (slower). The phrase "**wins**" in the tables always refers to winning the *time race*: with a `us` / `ns` column the lower value wins.
+
+RSS numbers are separate from speed: ft_malloc's ~4&ndash;9 MB footprint means it is using a few MB of physical RAM, independent of how many bytes the program allocated.
 
 ## Dynamic Memory Theory
 
@@ -170,6 +202,8 @@ chunk header  +--------+--------+------------------+ (the footer)    | next |
 Because live chunks never need it, the footer is only written when a chunk becomes free &mdash; it costs nothing while the block is in use. (Parked tcache chunks, being `CHUNK_MMAPPED`-tagged and thus skipped by every coalescer, are the one exception: they are pushed without re-writing the footer, see below.)
 
 ### The thread-local cache (fast path)
+
+*A cache, in allocator terms, is a small reserved stash that avoids going back to the shared heap every time: `free` leaves a block here and a later `malloc` of the same size takes it back. Each thread gets its own, so there are no locks on this path (see [Glossary](#glossary-of-terms-plain-english)).*
 
 Every thread owns a small per-thread stash (`t_tcache`, lazily `mmap`-ed) of **64 size classes** covering payloads up to 1 KiB. Freed chunks in that range are "parked" here instead of the shared bins; a following `malloc` of the same class pops the most recent one. The fast path is **lock-free**: no list lock, no arena lock, just a TLS read plus a header write on pop.
 
@@ -397,13 +431,15 @@ Coda: because freeing is immediate and coalescing is eager, the allocator never 
 
 glibc `malloc` is the benchmark of the ecosystem: per-thread caches (`tcache`), per-size-type arena heaps, and in-place `realloc` give it extreme throughput on small allocations. ft_malloc implements the same small-`malloc` trick (own per-thread cache) while keeping everything open, documented and easy to audit.
 
+> **Reading this table without prior context.** Every row compares the two allocators on one *dimension* (speed, memory control, safety, &hellip;). "Wins" always means *wins the time race*: the allocator that does the same amount of work in less time. A ratio like `free 0.52&times;` means ft_malloc is **about twice as fast** as glibc on that phase; `realloc 1.5&times;` means glibc is 1.5&times; faster. See [Glossary](#glossary-of-terms-plain-english).
+
 | Dimension | ft_malloc | glibc malloc | Wins |
 | --- | --- | --- | --- |
 | Small-allocation latency | per-thread tcache (64 classes, ≤ 1 KiB, 64&ndash;65536 entries on hot classes, **lock-free fast path**, burst overflow up to 262144/class, inline single-read push) + 16 B-grain bins for the rest | per-thread `tcache`: zero locks, LIFO pop, ~7/class then arena lock | **ft_malloc** on both `malloc` (0.93&times;) and `free` (0.52&times;) |
 | Fragmentation control | eager + O(1) coalescing, exact split | coalescing triggered when free lists are short | ft_malloc |
 | Syscall cost per `malloc` | zero after warmup (arena reuse + tcache) | zero after warmup (cached arenas + tcache) | tie |
 | LARGE blocks | mmap per block with 4 MiB cap cache; dispatches to arena when threshold grows | mmap above `MMAP_THRESHOLD`, cached up to cap | tie |
-| `realloc` growing | arena: park-absorb + top-carve in place (`grow_neighbor` absorbs the carved top piece directly, so `chunk_split` not stamping `CHUNK_FREE` can't leave a phantom blocking neighbor); LARGE: copy to new map | in-place whenever usable size allows, else copy | glibc (1.3&times; gap, fixed from 4.3&times;) |
+| `realloc` growing | arena: park-absorb + top-carve in place (`grow_neighbor` absorbs the carved top piece directly, so `chunk_split` not stamping `CHUNK_FREE` can't leave a phantom blocking neighbor); LARGE: copy to new map | in-place whenever usable size allows, else copy | glibc (1.5&times; gap, fixed from 4.3&times;) |
 | Thread safety | correct, mutex-based (no lock-order inversions); tcache fast path never locks | scalable per-thread arenas + locking | glibc on cores; ft_malloc is simpler |
 | Memory accounting | exact (`used` per arena) & `show_alloc_mem_ex` integrity walk | `malloc_stats`, no built-in per-zone report | ft_malloc |
 | Auditability | ~1,400 lines, no magic constants beyond documented thresholds | tens of thousands of lines | ft_malloc |
@@ -414,7 +450,7 @@ The benchmark below (measured this session, interleaved FT/glibc on the same hos
 
 1. **Class-aware tcache capacity.** `TC_HOT_IDX`/`TC_HOT_LIMIT` (65,536 entries for payloads ≤ 48 B) over plain `TC_LIMIT` (64). A `malloc(32)` hot loop spends its time purely in the lock-free pop path; the 1,024&times;-deeper park means the arena lock + refill (`carve_prefetch`) runs a whole burst at a time, amortized to nothing. This is what moves `malloc` from parity (~1.2&times; glibc) to better-than-glibc.
 
-2. **Minimum-write `tc_push`.** Parking a chunk used to re-write its footer *and* set `CHUNK_PREV_FREE` on the next neighbor on every `free` &mdash; two stores that are dead weight for parked chunks, because `coalesce_next`/`coalesce_prev` already bail out on anything tagged `CHUNK_MMAPPED`, and `coalesce_prev` only consults a footer when `CHUNK_PREV_FREE` is actually set (only refreshed by `free_push` for bin chunks). Dropping them takes `free` from ~44 ns to ~31 ns/op (single-store push, same shape as glibc's `tcache`).
+2. **Minimum-write `tc_push`.** Parking a chunk used to re-write its footer *and* set `CHUNK_PREV_FREE` on the next neighbor on every `free` &mdash; two stores that are dead weight for parked chunks, because `coalesce_next`/`coalesce_prev` already bail out on anything tagged `CHUNK_MMAPPED`, and `coalesce_prev` only consults a footer when `CHUNK_PREV_FREE` is actually set (only refreshed by `free_push` for bin chunks). Dropping them takes `free` from ~44 ns to ~31 ns/op (single-store push, same shape as glibc's `tcache`) &mdash; *ns/op* = time in nanoseconds for one single `free` call, so 31 ns is about a third faster than 44 ns.
 
 3. **Coalesce-skip in `free_small` when the class is full.** When the tcache slot for the released size is already saturated, the chunk is going to `free_push` regardless &mdash; coalescing first is wasted work. `free_small` now reads `tc_peek()`: if the slot has room it coalesces (eager merging keeps fragmentation low), if not it pushes straight to the bin (fastbin-style, like glibc `_int_free` on a full fastbin). Combined with the refill-loop rewrite (`carve_prefetch` inlines the split instead of calling `chunk_split` and skipping the now-optional footer write), the `free` phase holds near glibc instead of regressing.
 
@@ -426,9 +462,9 @@ The honest summary: **ft_malloc beats glibc on its most important tricks** &mdas
 
 ## Benchmark
 
-Method: one binary (`tests/bench.c`) is compiled with `-O2` and executed twice &mdash; normally (glibc) and with `LD_PRELOAD=libft_malloc.so` (ft_malloc). Every phase is self-contained; the same randomization seed (`i * 2654435761 % n`) drives both runs so the work set is identical. Timing is `clock_gettime(CLOCK_MONOTONIC)` per phase; RSS comes from `/proc/self/status` (`VmRSS`/`VmHWM`), which this kernel reports truthfully even after anonymous `mmap` (getrusage's `ru_maxrss` does not).
+Method: one binary (`tests/bench.c`) is compiled with `-O2` and executed twice &mdash; normally (glibc) and with `LD_PRELOAD=libft_malloc.so` (ft_malloc). Every phase is self-contained; the same randomization seed (`i * 2654435761 % n`) drives both runs so the work set is identical. Timing is `clock_gettime(CLOCK_MONOTONIC)` per phase; RSS (the *physical RAM footprint* the process occupies, see [Glossary](#glossary-of-terms-plain-english)) comes from `/proc/self/status` (`VmRSS`/`VmHWM`), which this kernel reports truthfully even after anonymous `mmap` (getrusage's `ru_maxrss` does not).
 
-The table shows the **minimum of ten interleaved runs** (ft, glibc, ft, glibc &hellip;) on the same host to cancel scheduler noise; the host fluctuates 2&ndash;3&times; across runs, so minima are the honest estimate of each allocator's steady-state cost.
+The table shows the **minimum of ten interleaved runs** (ft, glibc, ft, glibc &hellip;) on the same host to cancel scheduler noise; the host fluctuates 2&ndash;3&times; across runs, so minima are the honest estimate of each allocator's steady-state cost. **Lower is better; the ratio column is "multiple of glibc's time", so a number under 1.0 means ft_malloc is the faster one.**
 
 | Phase | Description | glibc | ft_malloc | ft / glibc |
 | --- | --- | --- | --- | --- |
@@ -449,7 +485,7 @@ Notes:
 * **`tiny`/`mixed` are the remaining hot-path gaps (1.9&times;/2.5&times;).** The two smallest hot classes now take the fully lock-free path too, but each iteration still pays two header writes per chunk (park on free, unpark on malloc) plus the whole-arena `find_arena_by_ptr`/accounting on the way in; and mixed spans 512 classes so most parks/refills stay cold. Both are the documented trade-off of eager coalescing and per-chunk accounting.
 * **`realloc` is within reach (1.5&times;).** The old 4.3&times; gap was a real bug, not a design choice: `grow_neighbor` grew into the arena top by calling `carve_top` + `coalesce_next`, but `chunk_split` does **not** stamp `CHUNK_FREE` on the carved piece, so `coalesce_next` ignored it and left a phantom live chunk between the realloc'd chunk and the top. That phantom blocked *every* later `grow_neighbor` (19997/19999 failed) so essentially every realloc fell into `realloc_copy` (malloc + 16 KB `memcpy` + free). The fix absorbs the carved top piece directly into the chunk (`c->size += HEADER + chunk_size(grown)`, same shape as the parked-absorb loop): `inuse` failures dropped from 19998 to 0, top-carves now succeed (19692/20000), and `realloc` best time is 1,395 us. The remaining copies are only the ~230 cases where the physical neighbor is genuinely live.
 * **`big`/`hold`** remain 2.2&ndash;2.3&times; (mremap + mmap bookkeeping vs glibc's cached paths); both are acceptable single-digit-multiple costs on sizes that are 2&ndash;3 orders of magnitude less frequent than tiny.
-* **RSS stays on par.** Peak RSS is ~4&ndash;9 MB for both allocators; ft_malloc keeps parked + bin geometry in the mmap arena (exactly where a later burst can reuse it) and glibc *loses* RSS only because it `munmap`s/trims aggressively after `free`.
+* **RSS stays on par.** Peak RSS (physical-RAM footprint, *not* your allocated bytes &mdash; see [Glossary](#glossary-of-terms-plain-english)) is ~4&ndash;9 MB for both allocators; ft_malloc keeps parked + bin geometry in the mmap arena (exactly where a later burst can reuse it) and glibc *loses* RSS only because it `munmap`s/trims aggressively after `free`.
 
 ## Global Variables
 

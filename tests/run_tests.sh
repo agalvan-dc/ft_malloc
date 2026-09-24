@@ -14,8 +14,8 @@ CFLAGS="-Wall -Wextra -Werror -Wno-use-after-free -Wno-free-nonheap-object \
 
 ALLOC="ft_malloc.c ft_free.c ft_realloc.c ft_calloc.c ft_show_alloc_mem.c \
 	$SRC/alloc_core.c $SRC/arena.c $SRC/arena_ops.c $SRC/chunk.c \
-	$SRC/coalesce.c $SRC/debug.c $SRC/free_utils.c $SRC/large.c $SRC/tcache.c \
-	$SRC/utils.c"
+	$SRC/coalesce.c $SRC/debug.c $SRC/free_utils.c $SRC/large.c \
+	$SRC/malloc_arena.c $SRC/tcache.c $SRC/utils.c"
 LIBFT="$SRC/libft/ft_bzero.c $SRC/libft/ft_strlen.c $SRC/libft/ft_memcpy.c \
 	$SRC/libft/ft_memset.c"
 ENGINE="$TST/test_engine.c"

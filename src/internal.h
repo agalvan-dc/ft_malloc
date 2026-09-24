@@ -136,6 +136,10 @@ static inline int	size2bin(size_t p)
 	return (bin);
 }
 
+/*	malloc_arena.c	   */
+void		*malloc_arena(size_t need);
+void		*malloc_large(size_t size);
+
 /*	alloc_core.c	   */
 void		bin_push(t_arena *a, t_chunk *c);
 t_chunk		*find_free(t_arena *a, size_t need);
