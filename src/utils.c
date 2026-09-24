@@ -3,22 +3,22 @@
 /*                                                        :::      ::::::::   */
 /*   utils.c                                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: agalvan- <agalvan-@student.42madrid.com>   +#+  +:+       +#+        */
+/*   By: agalvan- <agalvan-@student.42.es>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/09/13 01:51:23 by agalvan-          #+#    #+#             */
-/*   Updated: 2026/09/15 14:36:29 by agalvan-         ###   ########.fr       */
+/*   Updated: 2026/09/23 00:00:00 by agalvan-         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "internal.h"
 
-size_t page_size(void)
+size_t	page_size(void)
 {
-    static size_t	cached;
+	static size_t	cached;
 
-    if (!cached)
-	cached = getpagesize();
-    return (cached);
+	if (!cached)
+		cached = sysconf(_SC_PAGESIZE);
+	return (cached);
 }
 
 void	putstr_safe(const char *s)
@@ -62,4 +62,13 @@ void	putnbr_safe(size_t n)
 		n /= 10;
 	}
 	write(1, buf + i, 21 - i);
+}
+
+int	ptr_plausible(const void *ptr)
+{
+	if ((uintptr_t)ptr < 0x10000)
+		return (0);
+	if ((uintptr_t)ptr % ALIGNMENT)
+		return (0);
+	return (1);
 }

@@ -44,7 +44,6 @@ SOURCES =  \
 	ft_memcmp.c \
 	ft_strnstr.c \
 	ft_atoi.c \
-	ft_calloc.c \
 	ft_strdup.c \
 	ft_substr.c \
 	ft_strjoin.c \
@@ -71,7 +70,6 @@ SOURCES =  \
 	ft_strjoin_and_split.c \
 	ft_atol.c \
 	ft_atof.c \
-	ft_free_all.c \
 	get_next_line.c \
 	get_next_line_utils.c \
 	

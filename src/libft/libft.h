@@ -79,9 +79,9 @@ void	ft_putptr(void *ptr, int *counter);
 int		ft_sqrt(int nb);
 char	**ft_join_and_split(int argc, char **argv);
 long	ft_atol(const char *s);
-float	ft_atof(const char *s); 
+float	ft_atof(const char *s);
 char	*ft_accum(char *c, char *s);
 char	*get_next_line(int fd);
 void	ft_free_all(char **split);
 
-#endif 
+#endif
