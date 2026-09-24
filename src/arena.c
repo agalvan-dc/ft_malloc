@@ -24,11 +24,6 @@ t_allocator				g_alloc = {
 	.main_thread = 0
 };
 
-size_t	arena_hdr(void)
-{
-	return (align_up(sizeof(t_arena), ALIGNMENT));
-}
-
 static void	*arena_map(size_t size, int use_brk)
 {
 	void	*base;

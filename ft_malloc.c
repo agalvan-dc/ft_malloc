@@ -25,5 +25,11 @@ void	*malloc(size_t size)
 	c = tc_pop(need);
 	if (c)
 		return (payload_from_chunk(c));
+	if (need > TC_MAX)
+	{
+		c = big_slot_pop(need);
+		if (c)
+			return (payload_from_chunk(c));
+	}
 	return (malloc_arena(need));
 }

@@ -18,7 +18,7 @@ NAME = libft_malloc_$(HOSTTYPE).so
 
 CC = cc
 
-CFLAGS = -Wall -Wextra -Werror -O2 -fno-strict-aliasing -Wno-array-bounds -Wno-maybe-uninitialized -fPIC -g -pthread
+CFLAGS = -Wall -Wextra -Werror -O2 -fno-strict-aliasing -Wno-array-bounds -Wno-maybe-uninitialized -fPIC -g -pthread -ftls-model=initial-exec
 
 INCLUDES	= -I. -I./src/libft
 

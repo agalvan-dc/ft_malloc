@@ -12,7 +12,9 @@
 
 #include "internal.h"
 
-static __thread void	*g_tc_raw;
+__thread void			*g_tc_raw;
+static __thread t_chunk	*g_big_slot;
+static __thread t_arena	*g_big_arena;
 
 static t_tcache	*tc_struct(void)
 {
@@ -30,25 +32,6 @@ static t_tcache	*tc_struct(void)
 	return (tc);
 }
 
-int	tc_index(size_t payload)
-{
-	if (payload <= 16)
-		return (0);
-	if (payload > TC_MAX)
-		return (-1);
-	return ((int)((payload - 16) >> 4));
-}
-
-t_tcache	*tc_struct_lazy(void)
-{
-	return (tc_struct());
-}
-
-t_tcache	*tc_peek(void)
-{
-	return ((t_tcache *)g_tc_raw);
-}
-
 int	tc_push(t_arena *a, t_chunk *c)
 {
 	t_tcache	*tc;
@@ -61,8 +44,7 @@ int	tc_push(t_arena *a, t_chunk *c)
 	tc = tc_struct();
 	if (!tc || tc->len[idx] >= tc_tray(idx))
 		return (0);
-	set_flag(c, CHUNK_FREE);
-	set_flag(c, CHUNK_MMAPPED);
+	c->size |= CHUNK_FREE | CHUNK_MMAPPED;
 	c->next = tc->head[idx];
 	tc->head[idx] = c;
 	tc->len[idx]++;
@@ -95,23 +77,43 @@ int	tc_unpark(t_chunk *target)
 	return (0);
 }
 
-t_chunk	*tc_pop(size_t need)
+int	big_slot_park(t_arena *a, t_chunk *c)
 {
-	t_tcache	*tc;
-	t_chunk		*c;
-	int			idx;
+	if (g_big_slot)
+		return (0);
+	g_big_slot = c;
+	g_big_arena = a;
+	c->size |= CHUNK_FREE | CHUNK_MMAPPED;
+	clear_flag(c, CHUNK_ZEROED);
+	a->used -= chunk_size(c);
+	return (1);
+}
 
-	if (!g_tc_raw)
+t_chunk	*big_slot_pop(size_t need)
+{
+	t_chunk	*c;
+	t_arena	*a;
+	size_t	sz;
+
+	c = g_big_slot;
+	if (!c)
 		return (NULL);
-	idx = tc_index(need);
-	if (idx < 0)
+	sz = chunk_size(c);
+	a = g_big_arena;
+	if (sz != need)
+	{
+		g_big_slot = NULL;
+		g_big_arena = NULL;
+		c->size &= ~CHUNK_MMAPPED;
+		pthread_mutex_lock(&a->mutex);
+		free_push(a, c);
+		pthread_mutex_unlock(&a->mutex);
 		return (NULL);
-	tc = (t_tcache *)g_tc_raw;
-	if (!tc->head[idx])
-		return (NULL);
-	c = tc->head[idx];
-	tc->head[idx] = c->next;
-	tc->len[idx]--;
-	c->size &= ~(CHUNK_FREE | CHUNK_MMAPPED);
+	}
+	g_big_slot = NULL;
+	g_big_arena = NULL;
+	if (a)
+		a->used += sz;
+	c->size &= ~(CHUNK_FREE | CHUNK_MMAPPED | CHUNK_ZEROED);
 	return (c);
 }

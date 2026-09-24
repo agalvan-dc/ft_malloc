@@ -22,11 +22,10 @@ static int	free_tcache_fast(t_arena *a, t_chunk *c, size_t sz)
 	idx = tc_index(sz);
 	if (idx < 0)
 		return (0);
-	tc = tc_struct_lazy();
+	tc = tc_peek();
 	if (!tc || tc->len[idx] >= tc_tray(idx))
 		return (0);
-	set_flag(c, CHUNK_FREE);
-	set_flag(c, CHUNK_MMAPPED);
+	c->size |= CHUNK_FREE | CHUNK_MMAPPED;
 	c->next = tc->head[idx];
 	tc->head[idx] = c;
 	tc->len[idx]++;
@@ -72,9 +71,13 @@ void	free(void *ptr)
 	}
 	a = g_last_arena;
 	if (a && (char *)c >= (char *)a + arena_hdr()
-		&& (char *)c < (char *)a + a->total
-		&& free_tcache_fast(a, c, sz))
-		return ;
+		&& (char *)c < (char *)a + a->total)
+	{
+		if (free_tcache_fast(a, c, sz))
+			return ;
+		if (sz > TC_MAX && big_slot_park(a, c))
+			return ;
+	}
 	a = arena_from_ptr(c);
 	if (!a || has_flag(c, CHUNK_FREE))
 	{

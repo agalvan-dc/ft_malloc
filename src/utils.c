@@ -63,12 +63,3 @@ void	putnbr_safe(size_t n)
 	}
 	write(1, buf + i, 21 - i);
 }
-
-int	ptr_plausible(const void *ptr)
-{
-	if ((uintptr_t)ptr < 0x10000)
-		return (0);
-	if ((uintptr_t)ptr % ALIGNMENT)
-		return (0);
-	return (1);
-}
